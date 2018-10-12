@@ -4,19 +4,20 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/terminal"
 	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"os/signal"
+	"os/user"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
+
 	"github.com/BurntSushi/toml"
-	"strings"
-	"strconv"
-	"os/user"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 type ConnectParam struct {
@@ -26,12 +27,13 @@ type ConnectParam struct {
 	Host       string
 	PrivateKey string
 }
-var userParam = ConnectParam {
-	Port:22,
-	User:"root",
+
+var userParam = ConnectParam{
+	Port: 22,
+	User: "root",
 }
 var (
-	h bool
+	h    bool
 	conf string
 	name string
 )
@@ -40,26 +42,26 @@ func usage() {
 	fmt.Fprintf(os.Stderr, `yunssh version: yunssh/0.0.0
 Usage: yunssh [-u user] [-p passwd] [-h host] [-port port]
 	or yunssh user:passwd@host:port 
-	or yunssh [-u user] [-h host] [-port port] [-prik privatekey] [-pubkey publickey]  [-p passwd(this is the passwd of privatekey)]
+	or yunssh [-u user] [-h host] [-port port] [-prik privatekey] [-p passwd(this is the passwd of privatekey)]
 	or yunssh [-c configfile] [-n suboptions]
 
 Options:
 `)
 	flag.PrintDefaults()
 }
-func init(){
+func init() {
 	user, err := user.Current()
 	if nil != err {
 		panic(err)
 	}
 	flag.BoolVar(&h, "h", false, "this help")
-	flag.StringVar(&userParam.User,"u", "root", "user name,default is root")
-	flag.StringVar(&userParam.Passwd,"p", "", "passwd of user(when -prik is not null,it's the passwd of privatekey)")
-	flag.IntVar(&userParam.Port,"P", 22, "port")
-	flag.StringVar(&userParam.Host,"H", "", "IP Address")
-	flag.StringVar(&userParam.PrivateKey,"prik", "", "the path of privatekey (if the passwd is nil,the passwd is the privatekey's passwd)")
-	flag.StringVar(&conf,"c", user.HomeDir + "/.ssh/yunssh.conf", "configfile path")
-	flag.StringVar(&name,"n", "", "the suboptions of the configfile")
+	flag.StringVar(&userParam.User, "u", "root", "user name,default is root")
+	flag.StringVar(&userParam.Passwd, "p", "", "passwd of user(when -prik is not null,it's the passwd of privatekey)")
+	flag.StringVar(&userParam.Host, "H", "", "IP Address")
+	flag.IntVar(&userParam.Port, "P", 22, "port")
+	flag.StringVar(&userParam.PrivateKey, "prik", "", "the path of privatekey (if the passwd is nil,the passwd is the privatekey's passwd)")
+	flag.StringVar(&conf, "c", user.HomeDir+"/.ssh/yunssh.conf", "configfile path")
+	flag.StringVar(&name, "n", "", "the suboptions of the configfile")
 	flag.Usage = usage
 }
 
@@ -74,7 +76,7 @@ func PathExists(path string) (bool, error) {
 	return false, err
 }
 
-func useConfig(filePath string,Suboptions string,param *ConnectParam) error {
+func useConfig(filePath string, Suboptions string, param *ConnectParam) error {
 	var confMap = make(map[string]interface{})
 	confExists, err := PathExists(filePath)
 	if err != nil {
@@ -86,43 +88,43 @@ func useConfig(filePath string,Suboptions string,param *ConnectParam) error {
 	if _, err := toml.DecodeFile(filePath, &confMap); err != nil {
 		return err
 	}
-	if subMap,ok := confMap[Suboptions]; !ok {
-		return fmt.Errorf("error: config file %s have no Suboptions %s",filePath,Suboptions)
-	}else{
-		if subUser,okValue := subMap.(map[string]interface{})["user"];okValue {
+	if subMap, ok := confMap[Suboptions]; !ok {
+		return fmt.Errorf("error: config file %s have no Suboptions %s", filePath, Suboptions)
+	} else {
+		if subUser, okValue := subMap.(map[string]interface{})["user"]; okValue {
 			param.User = subUser.(string)
 			if param.User == "" {
-				return fmt.Errorf("error: user is nill in file:%s Suboptions:",filePath,Suboptions)
+				return fmt.Errorf("error: user is nill in file:%s Suboptions:", filePath, Suboptions)
 			}
 		}
-		if subHost,okValue := subMap.(map[string]interface{})["host"];okValue {
+		if subHost, okValue := subMap.(map[string]interface{})["host"]; okValue {
 			param.Host = subHost.(string)
 			if param.Host == "" {
-				return fmt.Errorf("error: host is nill in file:%s Suboptions:",filePath,Suboptions)
+				return fmt.Errorf("error: host is nill in file:%s Suboptions:", filePath, Suboptions)
 			}
 		}
-		if subPasswd,okValue := subMap.(map[string]interface{})["passwd"];okValue {
+		if subPasswd, okValue := subMap.(map[string]interface{})["passwd"]; okValue {
 			param.Passwd = subPasswd.(string)
 		}
-		if subPort,okValue := subMap.(map[string]interface{})["port"];okValue {
-			param.Port =  int(subPort.(int64))
+		if subPort, okValue := subMap.(map[string]interface{})["port"]; okValue {
+			param.Port = int(subPort.(int64))
 		}
-		if subPrivate,okValue := subMap.(map[string]interface{})["privatekey"];okValue {
+		if subPrivate, okValue := subMap.(map[string]interface{})["privatekey"]; okValue {
 			param.PrivateKey = subPrivate.(string)
 		}
 	}
 	return nil
 }
 
-func useSshFormat(cmdstring string,param *ConnectParam) error  {
-	infolist := strings.Split(cmdstring,"@")
+func useSshFormat(cmdstring string, param *ConnectParam) error {
+	infolist := strings.Split(cmdstring, "@")
 	if len(infolist) != 2 {
-		return fmt.Errorf("Invalid fomat: %s \neg: user:passwd@host:port",cmdstring)
+		return fmt.Errorf("Invalid fomat: %s \neg: user:passwd@host:port", cmdstring)
 	}
-	userInfo := strings.Split(infolist[0],":")
-	addrInfo := strings.Split(infolist[1],":")
+	userInfo := strings.Split(infolist[0], ":")
+	addrInfo := strings.Split(infolist[1], ":")
 	if len(userInfo) > 2 || len(addrInfo) > 2 {
-		return fmt.Errorf("Invalid fomat: %s \neg: user:passwd@host:port",cmdstring)
+		return fmt.Errorf("Invalid fomat: %s \neg: user:passwd@host:port", cmdstring)
 	}
 	param.User = userInfo[0]
 	if len(userInfo) == 2 {
@@ -130,15 +132,15 @@ func useSshFormat(cmdstring string,param *ConnectParam) error  {
 	}
 	param.Host = addrInfo[0]
 	if len(addrInfo) == 2 {
-		port,errPort := strconv.Atoi(addrInfo[1])
+		port, errPort := strconv.Atoi(addrInfo[1])
 		if errPort != nil {
-			return fmt.Errorf("Invalid fomat: %s \neg: user:passwd@host:port",cmdstring)
+			return fmt.Errorf("Invalid fomat: %s \neg: user:passwd@host:port", cmdstring)
 		}
 		param.Port = port
 	}
 	return nil
 }
-func checkParam(param *ConnectParam)error  {
+func checkParam(param *ConnectParam) error {
 	if param.Host == "" {
 		return fmt.Errorf("error: host is nill")
 	}
@@ -152,7 +154,6 @@ func checkParam(param *ConnectParam)error  {
 	return nil
 }
 
-
 func main() {
 	flag.Parse()
 	if h {
@@ -160,24 +161,24 @@ func main() {
 		return
 	}
 	if name != "" {
-		if errParam := useConfig(conf,name,&userParam); errParam != nil {
-			fmt.Printf("\n%s\n\n",errParam.Error())
+		if errParam := useConfig(conf, name, &userParam); errParam != nil {
+			fmt.Printf("\n%s\n\n", errParam.Error())
 			flag.Usage()
 			return
 		}
 	}
 	if len(os.Args) == 2 {
-		if errParam := useSshFormat(os.Args[1],&userParam);errParam != nil{
-			fmt.Printf("\n%s\n\n",errParam.Error())
+		if errParam := useSshFormat(os.Args[1], &userParam); errParam != nil {
+			fmt.Printf("\n%s\n\n", errParam.Error())
 			return
 		}
 	}
-	if checkErr := checkParam(&userParam);checkErr != nil {
-		fmt.Printf("\n%s\n\n",checkErr.Error())
+	if checkErr := checkParam(&userParam); checkErr != nil {
+		fmt.Printf("\n%s\n\n", checkErr.Error())
 		flag.Usage()
 		return
 	}
-	if errConnect := connect(userParam, nil);errConnect != nil {
+	if errConnect := connect(userParam, nil); errConnect != nil {
 		log.Panic(errConnect)
 	}
 	return
