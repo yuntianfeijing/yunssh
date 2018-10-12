@@ -16,6 +16,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"strings"
 	"strconv"
+	"os/user"
 )
 
 type ConnectParam struct {
@@ -47,13 +48,17 @@ Options:
 	flag.PrintDefaults()
 }
 func init(){
+	user, err := user.Current()
+	if nil != err {
+		panic(err)
+	}
 	flag.BoolVar(&h, "h", false, "this help")
 	flag.StringVar(&userParam.User,"u", "root", "user name,default is root")
 	flag.StringVar(&userParam.Passwd,"p", "", "passwd of user(when -prik is not null,it's the passwd of privatekey)")
 	flag.IntVar(&userParam.Port,"P", 22, "port")
 	flag.StringVar(&userParam.Host,"H", "", "IP Address")
 	flag.StringVar(&userParam.PrivateKey,"prik", "", "the path of privatekey (if the passwd is nil,the passwd is the privatekey's passwd)")
-	flag.StringVar(&conf,"c", "~/.ssh/yunssh.conf", "configfile path")
+	flag.StringVar(&conf,"c", user.HomeDir + "/.ssh/yunssh.conf", "configfile path")
 	flag.StringVar(&name,"n", "", "the suboptions of the configfile")
 	flag.Usage = usage
 }
