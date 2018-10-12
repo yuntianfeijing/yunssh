@@ -9,19 +9,19 @@ Usage: yunssh [-u user] [-p passwd] [-h host] [-port port]
 	or yunssh [-c configfile] [-n suboptions]
 
 Options:
+  -h	this help
+  -u string
+    	user name,default is root (default "root")
+  -p string
+    	passwd of user(when -prik is not null,it's the passwd of privatekey)
   -H string
     	IP Address
   -P int
     	port (default 22)
-  -c string
-    	configfile path (default "~/.ssh/yunssh.conf")
-  -h	this help
-  -n string
-    	the suboptions of the configfile
-  -p string
-    	passwd of user(when -prik is not null,it's the passwd of privatekey)
   -prik string
     	the path of privatekey (if the passwd is nil,the passwd is the privatekey's passwd)
-  -u string
-    	user name,default is root (default "root")
+  -c string
+    	configfile path (default "~/.ssh/yunssh.conf")
+  -n string
+    	the suboptions of the configfile
 ```
